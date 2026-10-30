@@ -1,6 +1,35 @@
 <!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FLYING JAPAN | 체험단 공식 가이드</title><style>:root{font-family:system-ui,-apple-system,'Noto Sans KR',sans-serif;color:#21334c;background:#f6f8fc}*{box-sizing:border-box}body{margin:0}header{background:white;border-bottom:1px solid #e1e7ef;padding:23px max(20px,calc((100vw - 1060px)/2))}.brand{font-weight:900;letter-spacing:.12em;color:#193e6b}main{max-width:1060px;margin:auto;padding:44px 20px}h1{font-size:clamp(26px,4vw,38px);margin:0 0 8px}.muted{color:#728097}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:18px;margin-top:30px}.card{background:#fff;border:1px solid #dce5ef;border-radius:16px;padding:28px;text-align:left;cursor:pointer;box-shadow:0 4px 14px #18385808}.card:hover{border-color:#779dc9}.emoji{font-size:33px}.card h2{font-size:19px;margin:14px 0 7px}.card p{font-size:13px;color:#708097}.back{border:1px solid #ccd9e8;background:#fff;border-radius:9px;padding:11px 16px;cursor:pointer;color:#234d7e;font-weight:700}.viewer{display:none;flex-direction:column;height:calc(100dvh - 73px)}.viewbar{padding:12px 20px;background:white;border-bottom:1px solid #e1e7ef;display:flex;align-items:center;gap:18px}.viewbar strong{font-size:15px}.viewer iframe{width:100%;flex:1;border:0;background:white}.notice{padding:16px;background:white;border:1px solid #e1e7ef;border-radius:10px;margin-top:24px}@media(max-width:600px){main{padding:26px 15px}.viewer{height:calc(100dvh - 68px)}}</style></head><body><header><div class="brand">FLYING JAPAN <span style="font-size:12px;color:#8290a2;font-weight:600">REVIEWER GUIDE</span></div></header><main id="home"><h1>체험단 공식 가이드</h1><p class="muted">참여하시는 체험단 상품의 가이드를 선택해 주세요.</p><div class="cards" id="cards"></div><div class="notice" id="status">가이드를 불러오는 중입니다...</div></main><div class="viewer" id="viewer"><div class="viewbar"><button class="back" id="back">← 전체 가이드</button><strong id="viewername"></strong></div><iframe id="frame" title="체험단 가이드" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms"></iframe></div><script>
 let guides=[];const $=id=>document.getElementById(id);
-async function load(){try{let r=await fetch('./guides.json?t='+Date.now(),{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);let data=await r.json();if(!Array.isArray(data))throw Error('잘못된 데이터');guides=data.filter(g=>g.published);let cards=$('cards');cards.innerHTML='';guides.forEach(g=>{let b=document.createElement('button');b.className='card';let e=document.createElement('div');e.className='emoji';e.textContent=g.icon||'📘';let h=document.createElement('h2');h.textContent=g.title;let p=document.createElement('p');p.textContent='가이드 자세히 보기 →';b.append(e,h,p);b.onclick=()=>openGuide(g.id);cards.append(b)});$('status').style.display=guides.length?'none':'block';$('status').textContent=guides.length?'':'현재 공개된 가이드가 없습니다.';if(location.hash.startsWith('#guide='))openGuide(decodeURIComponent(location.hash.slice(7)),false)}catch(e){$('status').textContent='가이드를 불러오지 못했습니다. guides.json 업로드 여부를 확인해 주세요. ('+e.message+')'}}
+async function load(){
+ const status=$('status');
+ try{
+  // Read the latest committed data directly from GitHub to avoid Pages deployment delays.
+  const sources=[
+   'https://api.github.com/repos/hedalye/flyingjapan_reviewerguide/contents/guides.json?ref=main&t='+Date.now(),
+   './guides.json?t='+Date.now()
+  ];
+  let data,errors=[];
+  for(const url of sources){
+   try{
+    const response=await fetch(url,{cache:'no-store',headers:url.includes('api.github.com')?{'Accept':'application/vnd.github.raw+json'}:{}});
+    if(!response.ok)throw Error('HTTP '+response.status);
+    let result=await response.json();
+    if(!Array.isArray(result)){
+     if(result.content){result=JSON.parse(decodeURIComponent(escape(atob(result.content.replace(/\s/g,'')))))}
+    }
+    if(!Array.isArray(result))throw Error('가이드 데이터 형식 오류');
+    data=result;break;
+   }catch(e){errors.push(e.message)}
+  }
+  if(!data)throw Error(errors.join(' / '));
+  guides=data.filter(g=>g&&g.published===true);
+  const cards=$('cards');cards.innerHTML='';
+  guides.forEach(g=>{const b=document.createElement('button');b.className='card';const e=document.createElement('div');e.className='emoji';e.textContent=g.icon||'📘';const h=document.createElement('h2');h.textContent=g.title;const desc=document.createElement('p');desc.textContent='가이드 자세히 보기 →';b.append(e,h,desc);b.onclick=()=>openGuide(g.id);cards.append(b)});
+  status.style.display=guides.length?'none':'block';status.textContent=guides.length?'':'현재 공개된 가이드가 없습니다.';
+  if(location.hash.startsWith('#guide='))openGuide(decodeURIComponent(location.hash.slice(7)),false);
+ }catch(e){status.style.display='block';status.textContent='최신 가이드를 불러오지 못했습니다. '+e.message}
+}
+
 function openGuide(id,push=true){let g=guides.find(x=>x.id===id);if(!g)return;$('home').style.display='none';$('viewer').style.display='flex';$('viewername').textContent=g.title;$('frame').srcdoc=g.html;if(push)history.pushState({},'',location.pathname+'#guide='+encodeURIComponent(id))}
-function goHome(push=true){$('viewer').style.display='none';$('home').style.display='block';$('frame').removeAttribute('srcdoc');if(push)history.pushState({},'',location.pathname)}$('back').onclick=()=>goHome();window.addEventListener('popstate',()=>{if(location.hash.startsWith('#guide=')){openGuide(decodeURIComponent(location.hash.slice(7)),false)}else goHome(false)});load();
+function goHome(push=true){$('viewer').style.display='none';$('home').style.display='block';$('frame').removeAttribute('srcdoc');if(push)history.pushState({},'',location.pathname)}$('back').onclick=()=>goHome();window.addEventListener('popstate',()=>{if(location.hash.startsWith('#guide=')){openGuide(decodeURIComponent(location.hash.slice(7)),false)}else goHome(false)});load();document.addEventListener('visibilitychange',()=>{if(!document.hidden)load()});
 </script></body></html>
